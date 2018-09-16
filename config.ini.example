@@ -2,11 +2,13 @@
 email_address=mailman@61626c.net
 smtp_server=smtp.61626c.net
 smtp_username=mailman
-smtp_password=NotMyRealPasswordOrUserName
+smtp_password=NotMyRealPassword
 
-imap_server=imap.61626c.net
+imap_server=smtp.61626c.net
 imap_username=mailman
-imap_password=NotMyRealPasswordOrUserName
+imap_password=NotMyRealPassword
+
+
 
 
 [Technology]
@@ -14,9 +16,9 @@ email_address=technology@61626c.net
 description="General Technology Mailing list"
 smtp_server=smtp.61626c.net
 smtp_username=technology
-smtp_password=NotMyRealPasswordOrUserName
+smtp_password=NotMyRealPassword
 
 imap_server=imap.61626c.net
 imap_username=technology
-imap_password=NotMyRealPasswordOrUserName
+imap_password=NotMyRealPassword
 
