@@ -51,10 +51,9 @@ def TestConfig(config):
 
 def SendEmail(receiver, message, section_name, config):
     try:
-        smtpObj = smtplib.SMTP(config.get(section_name, "smtp_server"), 587)
-        TLS=True
+        smtpObj = smtplib.SMTP(config.get(section_name, "smtp_server"), config.get(section_name, "smtp_port"))
         #too lazy to go fix it in the config rn
-        if TLS==True:
+        if config.get(section_name, "smtp_tls").lower()=="true":
             smtpObj.starttls()
 
         smtpObj.login(config.get(section_name, "smtp_username"), config.get(section_name, "smtp_password"))
@@ -87,6 +86,7 @@ def MonitorMail(section_name, config):
                     #We need a different admin section to perform actions like subscribing
                     if 'help' in email_message.get('Subject').lower():
                         SendEmail(email_message.get('From'), msg.as_string(), "ADMIN", config)
+                        client.move(uid, "LIST_ARCHIVE")
                 else:
                     #here is where we decide if it's an command, or a message to pass along.
                     pass

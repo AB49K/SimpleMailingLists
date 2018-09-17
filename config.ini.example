@@ -3,11 +3,13 @@ email_address=mailman@61626c.net
 smtp_server=smtp.61626c.net
 smtp_username=mailman
 smtp_password=NotMyRealPassword
+smtp_tls=True
+smtp_port=587
 
 imap_server=smtp.61626c.net
 imap_username=mailman
 imap_password=NotMyRealPassword
-
+imap_tls=True
 
 
 
@@ -17,8 +19,11 @@ description="General Technology Mailing list"
 smtp_server=smtp.61626c.net
 smtp_username=technology
 smtp_password=NotMyRealPassword
+smtp_tls=True
+smtp_port=587
+
 
 imap_server=imap.61626c.net
 imap_username=technology
 imap_password=NotMyRealPassword
-
+imap_tls=True
