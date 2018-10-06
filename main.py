@@ -1,6 +1,8 @@
 from configparser import ConfigParser
 import os.path
 import sys
+import random
+import string
 from imapclient import IMAPClient
 import email
 import smtplib
@@ -60,7 +62,7 @@ def SendEmail(receiver, message, section_name, config):
         smtpObj.login(config.get(section_name, "smtp_username"), config.get(section_name, "smtp_password"))
         smtpObj.sendmail(config.get(section_name, "smtp_username"), receiver, message)
     except Exception as e:
-        print("SendEmail failed")
+        print("An error occured in the SendEmail() function")
         print(e)
 
 def MonitorMail(section_name, config):
@@ -91,9 +93,13 @@ Unsubscribe <list> Will unsubscribe you from a mailing list
                         client.move(uid, "LIST_ARCHIVE")
                     #I probably want to move this bit to it's own function. maybe later (never)
                     if "subscribe" in email_message.get("Subject").lower():
-                        Subscribe(email_message, section_name, config)
-
-
+                        try:
+                            Subscribe(email_message, section_name, config)
+                            client.move(uid, "LIST_ARCHIVE")
+                        except Exception as e:
+                            print("An error occured in the Subscribe() function")
+                            print(e)
+    
 
                 else:
                     #here is where we decide if it's an command, or a message to pass along.
@@ -111,10 +117,17 @@ Unsubscribe <list> Will unsubscribe you from a mailing list
         print("An error occured in the mailmonitor function\n")
         print(e)
 
-def GenerateConfirmationString():
+def GenerateConfirmationString(email_address, section_name):
     #This feature is here to stop someone being able to spoof an email and get someone else on the list - we have to implement this
     #because we are can't trust the mail server. a lot of mail servers don't stop spoofing.
-    return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(16))
+    confirmation_string=''.join(random.choices(string.ascii_uppercase + string.digits, k=16))
+    try:
+        m=MailSQL("INSERT INTO mailer VALUES ('{email}', '{mail_list}', '{confirm_string}', {confirmed})".format(email=GetUserEmailAddress(email_address), mail_list=section_name.lower(), confirm_string=confirmation_string, confirmed=0))
+        return(confirmation_string)
+    except Exception as e:
+        print("An error occured in the GenerateConfirmationString() function")
+        print(e)
+    
 
 def CreateDatabase():
     print("Checking if mailer.db exists.")
@@ -139,25 +152,34 @@ def MailSQL(command):
     conn=sqlite3.connect('mailer.db')
     c=conn.cursor()
     c.execute(command)
+    conn.commit()
     return c.fetchone()
 
+def GetUserEmailAddress(email_from):
+    #This is a silly hack and I don't like it. but it works.
+    email_from=email_from.split("<")
+    return str(email_from[1].replace(">", ""))
+    
+    
+    
 def CheckIfSubscribed(email_message, section_name):
-    #placeholder function
-    m=MailSQL(("select * from mailer where email_address={} and mailing_list={}").format(email_message.get('From'), section_name.lower))
+    m=MailSQL("SELECT * FROM mailer WHERE email_address='{}' AND mailing_list='{}'".format(GetUserEmailAddress(email_message.get('From')), section_name.lower()))
     print(m)
-
+    if m==None:
+        return 1
+    if m[3]==1:
+        return 0
+    if m[2] in email_message.get('Subject'):
+        #This is where we confirm the subscription
+        MailSQL("UPDATE mailer SET subscribed=1 WHERE email_address='{}' AND mailing_list='{}'".format(GetUserEmailAddress(email_message.get('From')), section_name.lower()))
+        return 2
 
 def SendToList(email_message,section_name,config):
     pass
 
 def Subscribe(email_message,section_name,config):
     #These are hardcoded for a reason.
-    helpmessage="""
-Valid commands
-help - This message
-Subscribe <list> subscribes to a mailing list
-Unsubscribe <list> Will unsubscribe you from a mailing list
-"""
+
     subscribe_message="""
 Your have asked to be subscribed to {maillist}
 {email}
@@ -169,23 +191,42 @@ Thanks.
     subscription_confirm="""
 You have subscribed to {maillist}
 
-To unsubscribe send an email to {email} with the subject "unsubscribe"
+To unsubscribe send an email to {email} or {admin_email} with the subject "unsubscribe technology"
 """
     for section_name in config.sections():
         if section_name.lower() in email_message.get("Subject").lower():
-            CheckIfSubscribed(email_message, section_name)
+            try:
+                is_subscribed=CheckIfSubscribed(email_message, section_name)
+            except Exception as e:
+                print("An error occured in the CheckIfSubscribed() function")
+                print(e)
             msg=MIMEMultipart()
-            msg['From']=config.get(section_name, "email_address")
+            msg['From']=config.get("ADMIN", "email_address")
             msg['To']=email_message.get('From')
-            subcription=email_message.get("Subject").lower()
+            subscription=email_message.get("Subject").lower()
             subscription=subscription.replace(" ", "")
             subscription=subscription.split("subscribe")
             subscription=subscription[1]
-            msg['Subject']="Subscribe {} - {}".format(subscription, GenerateConfirmationString())
-            mailbody=subscribe_message.format(maillist=subscription, email=config.get(subscription.capitalize(), "email_address"))
-            print(mailbody)
-            msg.attach(MIMEText(mailbody, 'plain'))
-            SendEmail(email_message.get('From'), msg.as_string(), "ADMIN", config)
+            if is_subscribed==1:
+                print("New subscriber!")
+                msg['Subject']="Subscribe {} - {}".format(subscription, GenerateConfirmationString(email_message.get('From'), section_name))
+                mailbody=subscribe_message.format(maillist=subscription, email=config.get(subscription.capitalize(), "email_address"))
+                msg.attach(MIMEText(mailbody, 'plain'))
+                SendEmail(email_message.get('From'), msg.as_string(), "ADMIN", config)
+            if is_subscribed==2:
+                print("Subscriber - Just confirmed!")
+                subscription=subscription.split('-')
+                msg['Subject']="Subscription to {} confirmed".format(subscription[0])
+                #another annoying hack
+                mailbody=subscription_confirm.format(maillist=subscription[0],email=config.get(subscription[0].capitalize(), "email_address"), admin_email=config.get("ADMIN", "email_address"))
+                msg.attach(MIMEText(mailbody, 'plain'))
+                print(mailbody)
+                SendEmail(email_message.get('From'), msg.as_string(), "ADMIN", config)
+                #this one here means they have sent a subscribe command - but haven't confirmed yet
+                pass
+            else:
+                #do nothing. we don't need to respond if they are trying to subscribe to a list they are already subbed to.
+                return 0
 
 config=LoadConfig()
 TestConfig(config)
