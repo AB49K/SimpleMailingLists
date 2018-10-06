@@ -5,9 +5,9 @@ This was built in response to being unable to find a super simple mailing list s
 
 TODO:
 
-1. database system to keep user information.
+1. database system to keep user information. - DONE
 
-2. confirmation of subscription.
+2. confirmation of subscription. - DONE
 
 3. email filtering to make sure only subscribed members can email the list
 
