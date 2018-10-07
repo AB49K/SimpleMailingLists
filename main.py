@@ -122,7 +122,10 @@ def GenerateConfirmationString(email_address, section_name):
     #because we are can't trust the mail server. a lot of mail servers don't stop spoofing.
     confirmation_string=''.join(random.choices(string.ascii_uppercase + string.digits, k=16))
     try:
-        m=MailSQL("INSERT INTO mailer VALUES ('{email}', '{mail_list}', '{confirm_string}', {confirmed})".format(email=GetUserEmailAddress(email_address), mail_list=section_name.lower(), confirm_string=confirmation_string, confirmed=0))
+        c,conn=MailSQL()
+        c.execute("INSERT INTO mailer VALUES (?, ?, ?, ?)",(GetUserEmailAddress(email_address), section_name.lower(), confirmation_string, 0))
+        conn.commit()
+        conn.close()
         return(confirmation_string)
     except Exception as e:
         print("An error occured in the GenerateConfirmationString() function")
@@ -148,12 +151,10 @@ def CreateDatabase():
         print(e)
 
 
-def MailSQL(command):
+def MailSQL():
     conn=sqlite3.connect('mailer.db')
     c=conn.cursor()
-    c.execute(command)
-    conn.commit()
-    return c.fetchone()
+    return(c,conn)
 
 def GetUserEmailAddress(email_from):
     #This is a silly hack and I don't like it. but it works.
@@ -163,15 +164,23 @@ def GetUserEmailAddress(email_from):
     
     
 def CheckIfSubscribed(email_message, section_name):
-    m=MailSQL("SELECT * FROM mailer WHERE email_address='{}' AND mailing_list='{}'".format(GetUserEmailAddress(email_message.get('From')), section_name.lower()))
+    c,conn=MailSQL()
+    print("getting data")
+    user_info=(GetUserEmailAddress(email_message.get('From')), section_name.lower())
+    c.execute("SELECT * FROM mailer WHERE email_address=? AND mailing_list=?", (user_info))
+    m=c.fetchone()
     print(m)
     if m==None:
+        conn.close()
         return 1
     if m[3]==1:
+        conn.close()
         return 0
     if m[2] in email_message.get('Subject'):
         #This is where we confirm the subscription
-        MailSQL("UPDATE mailer SET subscribed=1 WHERE email_address='{}' AND mailing_list='{}'".format(GetUserEmailAddress(email_message.get('From')), section_name.lower()))
+        m=c.execute("UPDATE mailer SET subscribed=1 WHERE email_address=? AND mailing_list=?", (user_info))
+        conn.commit()
+        conn.close()
         return 2
 
 def SendToList(email_message,section_name,config):
