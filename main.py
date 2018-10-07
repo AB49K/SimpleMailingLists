@@ -7,6 +7,7 @@ from imapclient import IMAPClient
 import email
 import smtplib
 from email.mime.multipart import MIMEMultipart
+from email.mime.message import MIMEMessage
 from email.mime.text import MIMEText
 import sqlite3
 #first we gotta load the config
@@ -203,19 +204,29 @@ def SendToList(email_message,section_name,config):
     msg['To']=config.get(section_name, "email_address")
     msg['Return-Path']=config.get(section_name, "email_address")
     msg['Subject']=email_message.get("Subject")
-    msg.attach(MIMEText(email_message.get_payload(), 'plain'))
+    if email_message.is_multipart():
+        for part in email_message.walk():
+            if part.get_content_type()=="text/plain":
+                payload=part.get_payload()
+            
+    else:
+        payload=email_message.get_payload()
+    msg.attach(MIMEText(payload, 'plain'))
     c,conn=MailSQL()
     c.execute("SELECT email_address FROM mailer WHERE mailing_list=? AND subscribed=1",(section_name.lower(),))
     bcclist=c.fetchall()
     conn.close()
     #iterate through the bcclist. we could do it using the bcclist[x][0], but I have a sus feeling it'd break down the line
-    #and I'm too tired to properly figure it out. I'd rather waste a few cycles and be safe. computers are fast now.
+    #and I'm too tired to properly figure it out. I'd rather waste a few cycles and be safe. computers are fast now
     sanitizedbcclist=[]
     for i in bcclist:
         print(i[0])
         sanitizedbcclist.append(i[0])
-    SendEmail(email_message.get('From'), msg.as_string(), section_name, config, sanitizedbcclist)
-
+    try:
+        SendEmail(email_message.get('From'), msg.as_string(), section_name, config, sanitizedbcclist)
+    except Exception as e:
+        print("An error occured in the SendEmail() function")
+        print(e)
 def Subscribe(email_message,section_name,config):
     #These are hardcoded for a reason.
 
