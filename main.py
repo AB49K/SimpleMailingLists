@@ -23,8 +23,7 @@ def LoadConfig():
             print("You need an admin address")
             sys.exit()
         for section_name in config.sections():
-            print('Section:', section_name)
-            print(' Options:', config.options(section_name))
+            print('Section Loaded:', section_name)
 
 
         
@@ -34,22 +33,18 @@ def LoadConfig():
 
 
 def TestConfig(config):
-    print("Testing logins")
+    print("Running Tests")
     for section_name in config.sections():
-        print("Testing", section_name)
         try:
             with IMAPClient(host=config.get(section_name, "imap_server")) as client:
                 client.login(config.get(section_name, "imap_username"), config.get(section_name, "imap_password"))
-                print("Login Successful\n")
-                print("Checking required folders")
                 if client.folder_exists("LIST_ARCHIVE"):
-                    print("Archive folder exists")
+                    pass
                 else:
                     print("LIST_ARCHIVE folder does not exist. Creating now")
                     client.create_folder("LIST_ARCHIVE")
-                    print("Done")
         except Exception as e:
-            print("An error occured\n")
+            print("An error occured for {}\n").format(section_name)
             print(e)
             sys.exit()
 
@@ -148,9 +143,8 @@ def GenerateConfirmationString(email_address, section_name):
     
 
 def CreateDatabase():
-    print("Checking if mailer.db exists.")
     if os.path.isfile('mailer.db'):
-        print("mailer.db exists. There is no option to re-write it here. please move or delete it if you want to rebuild it\n")
+        print("mailer.db exists. There is no option to re-write it here. please move or delete it if you want to rebuild it")
         return 0
     try:
         print("mailer.db does not exist. creating now")
@@ -281,6 +275,7 @@ To unsubscribe send an email to {email} or {admin_email} with the subject "unsub
 config=LoadConfig()
 TestConfig(config)
 CreateDatabase()
+print("Checking emails")
 for section_name in config.sections():
 
     MonitorMail(section_name, config)
