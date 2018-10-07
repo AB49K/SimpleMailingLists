@@ -52,7 +52,7 @@ def TestConfig(config):
             print(e)
             sys.exit()
 
-def SendEmail(receiver, message, section_name, config):
+def SendEmail(receiver, message, section_name, config, bcclist):
     try:
         smtpObj = smtplib.SMTP(config.get(section_name, "smtp_server"), config.get(section_name, "smtp_port"))
         #too lazy to go fix it in the config rn
@@ -60,7 +60,11 @@ def SendEmail(receiver, message, section_name, config):
             smtpObj.starttls()
 
         smtpObj.login(config.get(section_name, "smtp_username"), config.get(section_name, "smtp_password"))
-        smtpObj.sendmail(config.get(section_name, "smtp_username"), receiver, message)
+        if bcclist==None:
+            #this has to be here because putting Bcc lists into MIME headers will send them all to every client
+            smtpObj.sendmail(config.get(section_name, "smtp_username"), receiver, message)
+        else:
+            smtpObj.sendmail(config.get(section_name, "smtp_username"), [receiver] + bcclist, message)
     except Exception as e:
         print("An error occured in the SendEmail() function")
         print(e)
@@ -89,7 +93,7 @@ Unsubscribe <list> Will unsubscribe you from a mailing list
                     msg.attach(MIMEText(helpmessage, 'plain'))
                     #We need a different admin section to perform actions like subscribing
                     if 'help' in email_message.get('Subject').lower():
-                        SendEmail(email_message.get('From'), msg.as_string(), "ADMIN", config)
+                        SendEmail(email_message.get('From'), msg.as_string(), "ADMIN", config, None)
                         client.move(uid, "LIST_ARCHIVE")
                     #I probably want to move this bit to it's own function. maybe later (never)
                     if "subscribe" in email_message.get("Subject").lower():
@@ -104,14 +108,24 @@ Unsubscribe <list> Will unsubscribe you from a mailing list
                 else:
                     #here is where we decide if it's an command, or a message to pass along.
                     if "subscribe" in email_message.get("Subject").lower():
+                        if CheckIfSubscribed(email_message, section_name)==0:
+                            #Thanks Volkor.
+                            print("mongoltards are using the list")
+                            SendToList(email_message, section_name, config)
+                            client.move(uid, "LIST_ARCHIVE")
                         msg=MIMEMultipart()
                         msg['From']=config.get(section_name, "email_address")
                         msg['To']=email_message.get('From')
                         msg['Subject']="Please send the subscribe request to {}", config.get("ADMIN", "email_address")
-                        SendEmail(email_message.get('From'), msg.as_string(), section_name, config)
+                        SendEmail(email_message.get('From'), msg.as_string(), section_name, config, None)
 
                     else:
-                        SendToList(email_message, section_name, config)
+                        try:
+                            SendToList(email_message, section_name, config)
+                        except Exception as e:
+                            print("An error occured in SendToList() function")
+                            print(e)
+                        client.move(uid, "LIST_ARCHIVE")
 
     except Exception as e:
         print("An error occured in the mailmonitor function\n")
@@ -184,7 +198,23 @@ def CheckIfSubscribed(email_message, section_name):
         return 2
 
 def SendToList(email_message,section_name,config):
-    pass
+    msg=MIMEMultipart()
+    msg['From']=email_message.get('From')
+    msg['To']=config.get(section_name, "email_address")
+    msg['Return-Path']=config.get(section_name, "email_address")
+    msg['Subject']=email_message.get("Subject")
+    msg.attach(MIMEText(email_message.get_payload(), 'plain'))
+    c,conn=MailSQL()
+    c.execute("SELECT email_address FROM mailer WHERE mailing_list=? AND subscribed=1",(section_name.lower(),))
+    bcclist=c.fetchall()
+    conn.close()
+    #iterate through the bcclist. we could do it using the bcclist[x][0], but I have a sus feeling it'd break down the line
+    #and I'm too tired to properly figure it out. I'd rather waste a few cycles and be safe. computers are fast now.
+    sanitizedbcclist=[]
+    for i in bcclist:
+        print(i[0])
+        sanitizedbcclist.append(i[0])
+    SendEmail(email_message.get('From'), msg.as_string(), section_name, config, sanitizedbcclist)
 
 def Subscribe(email_message,section_name,config):
     #These are hardcoded for a reason.
@@ -221,7 +251,7 @@ To unsubscribe send an email to {email} or {admin_email} with the subject "unsub
                 msg['Subject']="Subscribe {} - {}".format(subscription, GenerateConfirmationString(email_message.get('From'), section_name))
                 mailbody=subscribe_message.format(maillist=subscription, email=config.get(subscription.capitalize(), "email_address"))
                 msg.attach(MIMEText(mailbody, 'plain'))
-                SendEmail(email_message.get('From'), msg.as_string(), "ADMIN", config)
+                SendEmail(email_message.get('From'), msg.as_string(), "ADMIN", config, None)
             if is_subscribed==2:
                 print("Subscriber - Just confirmed!")
                 subscription=subscription.split('-')
@@ -230,7 +260,7 @@ To unsubscribe send an email to {email} or {admin_email} with the subject "unsub
                 mailbody=subscription_confirm.format(maillist=subscription[0],email=config.get(subscription[0].capitalize(), "email_address"), admin_email=config.get("ADMIN", "email_address"))
                 msg.attach(MIMEText(mailbody, 'plain'))
                 print(mailbody)
-                SendEmail(email_message.get('From'), msg.as_string(), "ADMIN", config)
+                SendEmail(email_message.get('From'), msg.as_string(), "ADMIN", config, None)
                 #this one here means they have sent a subscribe command - but haven't confirmed yet
                 pass
             else:
