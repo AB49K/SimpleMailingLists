@@ -35,6 +35,7 @@ def LoadConfig():
 def TestConfig(config):
     print("Running Tests")
     for section_name in config.sections():
+        print(section_name)
         try:
             with IMAPClient(host=config.get(section_name, "imap_server")) as client:
                 client.login(config.get(section_name, "imap_username"), config.get(section_name, "imap_password"))
@@ -102,18 +103,29 @@ Unsubscribe <list> Will unsubscribe you from a mailing list
     
 
                 else:
+                    if "unsubscribe" in email_message.get("Subject").lower():
+                        print("user is unsubscribing")
+                        try:
+                            Unsubscribe(email_message, config)
+
+                        except Exception as e:
+                            print("An error happened in Unsubscribe() function")
+                            print(e)
+
                     #here is where we decide if it's an command, or a message to pass along.
-                    if "subscribe" in email_message.get("Subject").lower():
+                    elif "subscribe" in email_message.get("Subject").lower():
                         if CheckIfSubscribed(email_message, section_name)==0:
                             #Thanks Volkor.
-                            print("mongoltards are using the list")
+ 
                             SendToList(email_message, section_name, config)
                             client.move(uid, "LIST_ARCHIVE")
-                        msg=MIMEMultipart()
-                        msg['From']=config.get(section_name, "email_address")
-                        msg['To']=email_message.get('From')
-                        msg['Subject']="Please send the subscribe request to {}", config.get("ADMIN", "email_address")
-                        SendEmail(email_message.get('From'), msg.as_string(), section_name, config, None)
+
+                        else:
+                            msg=MIMEMultipart()
+                            msg['From']=config.get(section_name, "email_address")
+                            msg['To']=email_message.get('From')
+                            msg['Subject']="Please send the subscribe request to {}", config.get("ADMIN", "email_address")
+                            SendEmail(email_message.get('From'), msg.as_string(), section_name, config, None)
 
                     else:
                         try:
@@ -235,7 +247,7 @@ Thanks.
     subscription_confirm="""
 You have subscribed to {maillist}
 
-To unsubscribe send an email to {email} or {admin_email} with the subject "unsubscribe technology"
+To unsubscribe send an email to {email} or {admin_email} with the subject "unsubscribe {maillist}"
 """
     for section_name in config.sections():
         if section_name.lower() in email_message.get("Subject").lower():
@@ -271,6 +283,44 @@ To unsubscribe send an email to {email} or {admin_email} with the subject "unsub
             else:
                 #do nothing. we don't need to respond if they are trying to subscribe to a list they are already subbed to.
                 return 0
+def Unsubscribe(email_message, config):
+    unsubscribe_message="""You have been unsubscribed from {maillist}"""
+    for section_name in config.sections():
+        if section_name.lower() in email_message.get("Subject").lower():
+            try:
+                is_subscribed=CheckIfSubscribed(email_message, section_name)
+            except Exception as e:
+                print("An error occured in the CheckIfSubscribed() function")
+                print(e)
+            msg=MIMEMultipart()
+            msg['From']=config.get("ADMIN", "email_address")
+            msg['To']=email_message.get('From')
+            subscription=email_message.get("Subject").lower()
+            subscription=subscription.replace(" ", "")
+            subscription=subscription.split("subscribe")
+            subscription=subscription[1]
+
+            if is_subscribed==0:
+                try:
+                    c,conn=MailSQL()
+                    c.execute("DELETE FROM mailer WHERE email_address=? AND mailing_list=?", (GetUserEmailAddress(email_message.get('From')),subscription,))
+                    conn.commit()
+                    conn.close()
+                except Exception as e:
+                    print("An error occured in Unsubscribe SQL statement")
+                    print(e)
+                subscription=subscription.split('-')
+                msg['Subject']="Unsubscription from {}".format(subscription[0])
+                #another annoying hack, but again.
+                mailbody=unsubscribe_message.format(maillist=subscription[0])
+                msg.attach(MIMEText(mailbody, 'plain'))
+                SendEmail(email_message.get('From'), msg.as_string(), "ADMIN", config, None)
+           else:
+                #do nothing. we don't need to respond if they are trying to subscribe to a list they are already subbed to.
+                return 0
+
+
+
 
 config=LoadConfig()
 TestConfig(config)
@@ -279,6 +329,6 @@ print("Checking emails")
 for section_name in config.sections():
 
     MonitorMail(section_name, config)
-
+print("Work finished - exiting")
 
 
