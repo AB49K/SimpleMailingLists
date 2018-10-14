@@ -107,7 +107,7 @@ Unsubscribe <list> Will unsubscribe you from a mailing list
                         print("user is unsubscribing")
                         try:
                             Unsubscribe(email_message, config)
-
+                            client.move(uid, "LIST_ARCHIVE")
                         except Exception as e:
                             print("An error happened in Unsubscribe() function")
                             print(e)
@@ -205,6 +205,9 @@ def CheckIfSubscribed(email_message, section_name):
         return 2
 
 def SendToList(email_message,section_name,config):
+    if CheckIfSubscribed(email_message,section_name)!=0:
+        #This email address does not have permission to send emails to the list.
+        return 0
     msg=MIMEMultipart()
     msg['From']=email_message.get('From')
     msg['To']=config.get(section_name, "email_address")
@@ -299,7 +302,7 @@ def Unsubscribe(email_message, config):
             subscription=subscription.replace(" ", "")
             subscription=subscription.split("subscribe")
             subscription=subscription[1]
-
+            print(GetUserEmailAddress(email_message.get('From')),subscription)
             if is_subscribed==0:
                 try:
                     c,conn=MailSQL()
@@ -315,11 +318,12 @@ def Unsubscribe(email_message, config):
                 mailbody=unsubscribe_message.format(maillist=subscription[0])
                 msg.attach(MIMEText(mailbody, 'plain'))
                 SendEmail(email_message.get('From'), msg.as_string(), "ADMIN", config, None)
-           else:
+            else:
                 #do nothing. we don't need to respond if they are trying to subscribe to a list they are already subbed to.
                 return 0
 
-
+        else:
+            pass
 
 
 config=LoadConfig()

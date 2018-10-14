@@ -29,7 +29,7 @@ TODO:
 
 2. confirmation of subscription. - DONE
 
-3. email filtering to make sure only subscribed members can email the list
+3. email filtering to make sure only subscribed members can email the list - DONE
 
 4. finding the most efficient way to mass mail (how many bcc address can I add to an email? - DONE
 
