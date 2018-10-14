@@ -10,6 +10,7 @@ How to Set up:
 
 3. The mailer automatically checks login details at every run. It will tell you if the password changes or you can't log in.
 
+4. You need to set up a cron job, or scheduler. The script does not automatically monitor the inboxes
 
 FAQ:
 1. This program doesn't automatically monitor the inbox?
