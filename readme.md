@@ -2,6 +2,14 @@
 
 
 This was built in response to being unable to find a super simple mailing list software that doesn't want aliases with postfix or any number of unessesary system integrations.
+How to Set up:
+
+1. Rename config.ini.example to config.ini
+
+2. Open config.ini, set up the admin address details - as well as any other mailing lists you want to run.
+
+3. The mailer automatically checks login details at every run. It will tell you if the password changes or you can't log in.
+
 
 FAQ:
 1. This program doesn't automatically monitor the inbox?
