@@ -208,19 +208,10 @@ def SendToList(email_message,section_name,config):
     if CheckIfSubscribed(email_message,section_name)!=0:
         #This email address does not have permission to send emails to the list.
         return 0
-    msg=MIMEMultipart()
-    msg['From']=email_message.get('From')
-    msg['To']=config.get(section_name, "email_address")
-    msg['Return-Path']=config.get(section_name, "email_address")
-    msg['Subject']=email_message.get("Subject")
-    if email_message.is_multipart():
-        for part in email_message.walk():
-            if part.get_content_type()=="text/plain":
-                payload=part.get_payload()
-            
-    else:
-        payload=email_message.get_payload()
-    msg.attach(MIMEText(payload, 'plain'))
+    message=email.message_from_string(email_message.as_string())
+    message.replace_header("From", email_message.get("From"))
+    message.replace_header("To", config.get(section_name, "email_address"))
+    message.add_header("Reply-To", config.get(section_name, "email_address"))
     c,conn=MailSQL()
     c.execute("SELECT email_address FROM mailer WHERE mailing_list=? AND subscribed=1",(section_name.lower(),))
     bcclist=c.fetchall()
@@ -232,7 +223,9 @@ def SendToList(email_message,section_name,config):
         print(i[0])
         sanitizedbcclist.append(i[0])
     try:
-        SendEmail(email_message.get('From'), msg.as_string(), section_name, config, sanitizedbcclist)
+        print("Sending emails to")
+        print(sanitizedbcclist)
+        SendEmail(email_message.get('From'), message.as_string(), section_name, config, sanitizedbcclist)
     except Exception as e:
         print("An error occured in the SendEmail() function")
         print(e)

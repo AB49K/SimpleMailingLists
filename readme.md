@@ -12,6 +12,8 @@ How to Set up:
 
 4. You need to set up a cron job, or scheduler. The script does not automatically monitor the inboxes
 
+NOTE: You need at least python3.6 to run this.
+
 FAQ:
 1. This program doesn't automatically monitor the inbox?
 	
