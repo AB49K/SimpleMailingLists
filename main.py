@@ -302,7 +302,7 @@ def Unsubscribe(email_message, config):
             subscription=subscription.replace(" ", "")
             subscription=subscription.split("subscribe")
             subscription=subscription[1]
-            print(GetUserEmailAddress(email_message.get('From')),subscription)
+
             if is_subscribed==0:
                 try:
                     c,conn=MailSQL()
